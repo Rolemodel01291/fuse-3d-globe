@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Fuse 3D Globe</title>
+
+        <!-- these are just for the demo page / options -->
+        <script src="//code.jquery.com/jquery-2.0.3.min.js"></script>
+        <script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.2/jquery-ui.min.js"></script>
+        <script src="include/spectrum.js"></script>
+        <link href="include/spectrum.css" rel="stylesheet" type="text/css" />
+        <script src="include/jquery.switchButton.js"></script>
+        <link href="include/jquery.switchButton.css" rel="stylesheet" type="text/css" />
+        <script src="include/simple-slider.js"></script>
+        <script src="include/Detector.js"></script>
+
+        <link href="styles.css" rel="stylesheet" type="text/css" />
+
+        <!-- required for the application -->
+        <script src="grid.js"></script>
+
+        <!-- ref:js build/fuse-3d-globe.min.js -->
+        <script src="build/fuse-3d-globe.js"></script>
+        <!-- endref -->
+
+        <script>
+
+            var globe, globeCount = 0;
+
+
+            function createGlobe(){
+                var newData = [];
+                globeCount++;
+                $("#globe canvas").remove();
+
+                globe = new FUSE.Globe(window.innerWidth, window.innerHeight, {
+                    font: "Inconsolata",
+                    data: newData, // copy the data array
+                    tiles: grid.tiles,
+                    baseColor: $("#globe-color").val(),
+                    scale: parseFloat($("#globe-scale").val()),
+                    dayLength: 1000 * parseFloat($("#globe-spr").val()),
+                    introLinesDuration: parseFloat($("#globe-id").val()),
+                    viewAngle: parseFloat($("#globe-va").val())
+                });
+
+                $("#globe").append(globe.domElement);
+                globe.init(start);
+            }
+
+            function onWindowResize(){
+                globe.camera.aspect = window.innerWidth / window.innerHeight;
+                globe.camera.updateProjectionMatrix();
+                globe.renderer.setSize(window.innerWidth, window.innerHeight);
+
+            }
+
+            function roundNumber(num){
+                return Math.round(num * 100)/100;
+            }
+
+            function projectionToLatLng(width, height, x,y){
+
+                return {
+                    lat: 90 - 180*(y/height),
+                    lon: 360*(x/width)- 180,
+                };
+
+            }
+
+            function animate(){
+
+                if(globe){
+                    globe.tick();
+                }
+
+                lastTickTime = Date.now();
+
+                requestAnimationFrame(animate);
+            }
+
+            function start(){
+                
+                if(globeCount == 1){ // only do this for the first globe that's created. very messy
+                    $("#apply-button").click(function(e){
+                        globe.destroy(function(){
+                            createGlobe();
+                        });
+                    });
+
+                    $("#add-element li").click(function(e){
+                        $("#add-element li").removeClass("selected");
+                        $(e.currentTarget).addClass("selected");
+                    });
+
+                    animate();
+                }
+
+            }
+
+            function openOptions(){
+                $(".header-animator").offset({top: $(document).height()/2, left: 25});
+                $(".header-animator").height(0);
+
+                $("#options").data("left", $("#options").css("left"));
+                $("#options").animate({left: 0}, 500);
+
+                $("#options-content").delay(1500).animate({opacity: 1}, 500);
+
+                setTimeout(function(){
+                    $(".header-animator").css("visibility", "visible");
+                }, 500);
+
+                setTimeout(function(){
+                    $(".header-animator").css("visibility", "hidden");
+                    $(".header").css("visibility", "visible");
+                }, 1000);
+
+            }
+
+            function closeOptions(){
+                $("#options").animate({left: $("#options").data("left")}, 500);
+                $("#options-content").animate({opacity: 0}, 500);
+                $(".header").css("visibility", "hidden");
+            }
+
+            $(function() {
+                var open = false;
+
+
+                if(!Detector.webgl)
+                {
+                    Detector.addGetWebGLMessage({parent: document.getElementById("container")});
+                    return;
+                }
+
+                window.addEventListener( 'resize', onWindowResize, false );
+
+                $("#globe-color").spectrum({
+                    color: "#ffcc00",
+                    showButtons: false,
+                    showInput: false,
+                    change: function(color){
+                        if(globe){
+                            globe.setBaseColor(color.toHexString());
+                        }
+                    }
+                }); 
+
+                $("[data-slider]")
+                .each(function () {
+                    var input = $(this);
+                    $("<span>")
+                        .addClass("slider-output")
+                        .insertAfter($(this))
+                        .html(input.val());
+
+                    })
+                    .bind("slider:ready slider:changed", function (event, data) {
+                        $(this)
+                        .nextAll(".slider-output:first")
+                        .html(data.value.toFixed(3));
+                        });
+
+                $(":checkbox").switchButton();
+
+                $("#globe-scale").bind("slider:changed", function (event, data) {
+                    if(globe){
+                        globe.setScale(data.value);
+                    }
+                });
+
+                $("#globe-va").bind("slider:changed", function (event, data) {
+                    if(globe){
+                        globe.viewAngle = data.value;
+                    }
+                });
+
+                $("#globe-spr").bind("slider:changed", function (event, data) {
+                    if(globe){
+                        globe.dayLength = data.value * 1000;
+
+                    }
+                });
+                
+                var docHeight = $(document).height();
+
+                WebFontConfig = {
+                    google: {
+                          families: ['Inconsolata']
+                    },
+                    active: function(){
+                        /* don't start the globe until the font has been loaded */
+                        $("#options").css({
+                            "visibility": "visible",
+                            "top": docHeight/2,
+                            "bottom": docHeight/2
+                            }).animate({
+                            "top": 0,
+                            "bottom": 0,
+                            "padding-top": 46
+                            },800,function complete(){
+
+                                setTimeout(function(){
+                                    open = true;
+                                    openOptions();
+                                }, 3000);
+
+                                createGlobe();
+
+                            });
+                    }
+                };
+
+                /* Webgl stuff */
+
+
+                /* web font stuff*/
+                var wf = document.createElement('script');
+                wf.src = ('https:' == document.location.protocol ? 'https' : 'http') +
+                    '://ajax.googleapis.com/ajax/libs/webfont/1.4.7/webfont.js';
+                wf.type = 'text/javascript';
+                wf.async = 'true';
+                var s = document.getElementsByTagName('script')[0];
+                s.parentNode.insertBefore(wf, s);
+
+            });
+
+        </script>
+
+    </head>
+    <body>
+        <div id="container">
+            <div id="globe">
+            </div>
+            <div id="options">
+                <div id="options-content">
+                    <h3>Configure Globe</h3>
+
+                    <div>
+                        <label>
+                            Color Palette
+                        </label>
+                        <ul id="color-options">
+                            <li title="Globe Color"><input type="text" id="globe-color" value="#ffcc00"></li>
+                        </ul>
+
+                        <label>
+                            Globe Scale
+                        </label>
+                        <input type="text" id="globe-scale" data-slider="true" data-slider-range=".1, 3.0" data-slider-step=".01" data-slider-highlight="true" value="1.0"/>
+
+                        <label>
+                            View Angle
+                        </label>
+                        <input type="text" id="globe-va" data-slider="true" data-slider-range="-1.57, 1.57" data-slider-step=".01" data-slider-highlight="true" value=".1"/>
+
+                        <label>
+                            Seconds per Rotation
+                        </label>
+                        <input type="text" id="globe-spr" data-slider="true" data-slider-range="1, 120" data-slider-step="1" data-slider-highlight="true" value="28"/>
+
+                        <label>
+                            Intro Duration (ms)
+                        </label>
+                        <input type="text" id="globe-id" data-slider="true" data-slider-range="500,5000" data-slider-step="100" data-slider-highlight="true" value="2000"/>
+
+                    </div>
+
+                    <div id="apply-button" class="button">Reload</div>
+                    
+                </div>
+            </div>
+
+            <!-- probably should remove these and have them created in the script-->
+            <div class="header-animator" id="header-animator-inside"></div>
+            <div class="header-animator" id="header-animator-outside"></div>
+
+        </div>
+        <!-- ref:include analytics -->
+        <!-- endref -->
+    </body>
+</html>
+
